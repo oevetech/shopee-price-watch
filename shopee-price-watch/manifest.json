@@ -1,0 +1,42 @@
+{
+  "manifest_version": 3,
+  "name": "Shopee Price Watch",
+  "version": "0.6.4",
+  "description": "Monitora o preço de produtos da Shopee a cada X minutos e avisa (notificação + som) quando chegar no preço alvo.",
+  "permissions": [
+    "alarms",
+    "storage",
+    "notifications",
+    "tabs",
+    "offscreen",
+    "scripting",
+    "unlimitedStorage"
+  ],
+  "host_permissions": [
+    "https://shopee.com.br/*"
+  ],
+  "background": {
+    "service_worker": "background.js"
+  },
+  "action": {
+    "default_title": "Shopee Price Watch",
+    "default_popup": "popup.html"
+  },
+  "icons": {
+    "16": "icon16.png",
+    "48": "icon48.png",
+    "128": "icon128.png"
+  },
+  "content_scripts": [
+    {
+      "matches": [
+        "https://shopee.com.br/*"
+      ],
+      "js": [
+        "fakevisible.js"
+      ],
+      "run_at": "document_start",
+      "world": "MAIN"
+    }
+  ]
+}

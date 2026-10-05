@@ -92,11 +92,28 @@ async function render() {
     bEdit.onclick = () => startEdit(p);
     const bPlay = document.createElement('button');
     bPlay.textContent = '▶';
-    bPlay.title = 'Ouvir o som deste produto';
-    bPlay.onclick = () => previewSound(p.id);
+    bPlay.title = 'Ouvir o alerta deste produto (voz ou som, conforme a configuração)';
+    bPlay.onclick = async () => {
+      const { voice = {} } = await chrome.storage.local.get('voice');
+      if (voice.enabled) speakPreview(p);   // voz ligada: fala o nome
+      else previewSound(p.id);              // voz desligada: toca o som
+    };
     const bDel = document.createElement('button');
     bDel.textContent = 'Remover';
-    bDel.onclick = async () => { await mutate((ps) => { const i = ps.findIndex((x) => x.id === p.id); if (i >= 0) ps.splice(i, 1); }); await removeSound(p.id); render(); };
+    bDel.onclick = async () => {
+      // guarda o produto (e o som dele) na lixeira antes de excluir, para poder desfazer
+      const sk = 'sound:' + p.id;
+      const snd = (await chrome.storage.local.get(sk))[sk] || null;
+      let idx = -1;
+      await mutate((ps) => { idx = ps.findIndex((x) => x.id === p.id); if (idx >= 0) ps.splice(idx, 1); });
+      if (idx >= 0) {
+        const { trash = [] } = await chrome.storage.local.get('trash');
+        trash.push({ product: p, idx, sound: snd });
+        await chrome.storage.local.set({ trash: trash.slice(-10) });
+      }
+      await removeSound(p.id);
+      render();
+    };
     const lab = document.createElement('label');
     const cb = document.createElement('input');
     cb.type = 'checkbox'; cb.checked = p.enabled !== false;
@@ -138,6 +155,17 @@ async function removeSound(key) {
   delete meta[key];
   await chrome.storage.local.remove('sound:' + key);
   await chrome.storage.local.set({ soundmeta: meta });
+}
+function speakPreview(p) {
+  if (previewAudio) previewAudio.pause();
+  speechSynthesis.cancel();
+  const nome = String(p.name || p.url).replace(/\s+/g, ' ').trim().slice(0, 90);
+  const preco = p.lastPrice != null ? ` Preço ${Number(p.lastPrice).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}.` : '';
+  const u = new SpeechSynthesisUtterance(`Atenção! ${nome} está com desconto.${preco}`);
+  u.lang = 'pt-BR';
+  const v = speechSynthesis.getVoices().find((x) => /^pt[-_]BR/i.test(x.lang));
+  if (v) u.voice = v;
+  speechSynthesis.speak(u);
 }
 async function previewSound(key) {
   const k = 'sound:' + key;
@@ -283,7 +311,31 @@ chrome.storage.local.get('voice').then(({ voice = {} }) => { $('voiceOn').checke
 $('voiceOn').onchange = () => chrome.storage.local.set({ voice: { enabled: $('voiceOn').checked } });
 $('test').onclick = () => chrome.runtime.sendMessage({ type: 'testAlert' });
 
-chrome.storage.onChanged.addListener(() => { render(); updateSoundInfo(); });
+// Desfazer exclusão: restaura o último produto removido (guarda até 10).
+async function updateUndo() {
+  const { trash = [] } = await chrome.storage.local.get('trash');
+  const bar = $('undoBar');
+  bar.hidden = !trash.length;
+  if (trash.length) {
+    const n = trash[trash.length - 1].product;
+    $('undoText').textContent = `Removido: ${String(n.name || n.url).slice(0, 40)}${trash.length > 1 ? ` (+${trash.length - 1})` : ''}`;
+  }
+}
+$('undoBtn').onclick = async () => {
+  const { trash = [] } = await chrome.storage.local.get('trash');
+  const t = trash.pop();
+  if (!t) return;
+  await mutate((ps) => { if (!ps.some((x) => x.id === t.product.id)) ps.splice(Math.min(t.idx, ps.length), 0, t.product); });
+  if (t.sound) {
+    const meta = await getMeta();
+    meta[t.product.id] = t.sound.name;
+    await chrome.storage.local.set({ ['sound:' + t.product.id]: t.sound, soundmeta: meta });
+  }
+  await chrome.storage.local.set({ trash });
+  render();
+};
+chrome.storage.onChanged.addListener(() => { render(); updateSoundInfo(); updateUndo(); });
+updateUndo();
 render();
 updateSoundInfo();
 

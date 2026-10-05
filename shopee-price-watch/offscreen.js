@@ -5,6 +5,7 @@ let timer = null;
 let beatTimer = null;
 let stopTimer = null;
 let audio = null;
+let speakTimer = null;
 
 function beep(freq, startAt, dur) {
   const o = ctx.createOscillator();
@@ -51,7 +52,32 @@ function play(src) {
   }, 2000);
 }
 
+// Voz: fala o texto (pt-BR) e repete até silenciar / fechar a notificação / 1 minuto.
+function speakOnce(text) {
+  const u = new SpeechSynthesisUtterance(text);
+  u.lang = 'pt-BR';
+  const v = speechSynthesis.getVoices().find((x) => /^pt[-_]BR/i.test(x.lang));
+  if (v) u.voice = v;
+  u.rate = 1;
+  speechSynthesis.speak(u);
+}
+
+function speak(text, repeat = true) {
+  stop();
+  speakOnce(text);
+  if (!repeat) return;
+  speakTimer = setInterval(() => { if (!speechSynthesis.speaking) speakOnce(text); }, 5000);
+  stopTimer = setTimeout(stop, 60000);
+  beatTimer = setInterval(() => {
+    chrome.runtime.sendMessage({ type: 'soundHeartbeat' })
+      .then((r) => { if (r && r.active === false) stop(); })
+      .catch(() => {});
+  }, 2000);
+}
+
 function stop() {
+  clearInterval(speakTimer); speakTimer = null;
+  try { speechSynthesis.cancel(); } catch (e) {}
   clearInterval(timer);
   clearInterval(beatTimer);
   clearTimeout(stopTimer);
@@ -63,5 +89,6 @@ function stop() {
 chrome.runtime.onMessage.addListener((msg) => {
   if (msg?.target !== 'offscreen') return;
   if (msg.cmd === 'play') play(msg.src || null);
+  if (msg.cmd === 'speak') speak(msg.text || '', msg.repeat !== false);
   if (msg.cmd === 'stop') stop();
 });

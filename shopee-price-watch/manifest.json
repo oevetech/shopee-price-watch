@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "Shopee Price Watch",
-  "version": "0.7.2",
+  "version": "0.8.0",
   "description": "Monitora o preço de produtos da Shopee a cada X minutos e avisa (notificação + som) quando chegar no preço alvo.",
   "permissions": [
     "alarms",

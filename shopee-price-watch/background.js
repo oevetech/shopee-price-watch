@@ -290,7 +290,7 @@ async function enterCaptchaPause(w, url) {
     requireInteraction: true,
   });
   const s = await chrome.storage.local.get('sound:captcha');
-  await startSound((s['sound:captcha'] || {}).dataUrl || chrome.runtime.getURL('sounds/captcha.mp3')); // seu som > embutido
+  await announce('A Shopee pediu verificação. Resolva na janela aberta.', (s['sound:captcha'] || {}).dataUrl || chrome.runtime.getURL('sounds/captcha.mp3')); // seu som > embutido
   await haAlert('captcha', 'Shopee pediu verificação', 'Resolva a verificação na janela aberta do Chrome. As checagens estão pausadas.', { url });
 }
 
@@ -441,7 +441,7 @@ async function checkCoupon(force = false) {
       buttons: [{ title: 'Silenciar' }, { title: 'Abrir página' }],
     });
     const cs = await chrome.storage.local.get('sound:coupon');
-    await startSound((cs['sound:coupon'] || {}).dataUrl || chrome.runtime.getURL('sounds/coupon.mp3')); // seu som > embutido
+    await announce(`Cupom encontrado! ${coupon.name ? coupon.name + '. ' : ''}Valor ${coupon.value}.`, (cs['sound:coupon'] || {}).dataUrl || chrome.runtime.getURL('sounds/coupon.mp3')); // seu som > embutido
     await haAlert('coupon', 'Cupom encontrado!', `${coupon.name ? coupon.name + ' · ' : ''}Valor ${coupon.mode === 'gte' ? '≥ ' : ''}${coupon.value}`, { url: coupon.url, hits: r.hits || [] });
   }
 }
@@ -504,7 +504,7 @@ async function fireAlert(p, price) {
     requireInteraction: true,
     buttons: [{ title: 'Silenciar' }, { title: 'Abrir produto' }],
   });
-  await startSound(await pickSound(p.id));
+  await announce(`Atenção! ${shortName(p.name || p.url)} está com desconto. Preço ${fmt(price)}.`, pickSound(p.id));
   await notifyExternal(p, price);
 }
 
@@ -612,6 +612,27 @@ async function pickSound(id) {
   const s = await chrome.storage.local.get([k, 'sound:default']);
   return (s[k] || s['sound:default'] || {}).dataUrl || chrome.runtime.getURL('sounds/alert.mp3'); // próprio > padrão > embutido
 }
+
+// Voz: se ativada nas configurações, fala o texto em vez de tocar o som; senão toca o som normal.
+async function announce(text, srcPromise) {
+  const { voice = {} } = await chrome.storage.local.get('voice');
+  if (voice.enabled) return startSpeech(text);
+  return startSound(await srcPromise);
+}
+
+async function startSpeech(text, repeat = true) {
+  if (!(await chrome.offscreen.hasDocument())) {
+    await chrome.offscreen.createDocument({
+      url: 'offscreen.html',
+      reasons: ['AUDIO_PLAYBACK'],
+      justification: 'Anunciar por voz quando o preço atingir o alvo',
+    });
+    await new Promise((r) => setTimeout(r, 300));
+  }
+  chrome.runtime.sendMessage({ target: 'offscreen', cmd: 'speak', text, repeat }).catch(() => {});
+}
+
+const shortName = (n) => String(n || 'Produto').replace(/\s+/g, ' ').trim().slice(0, 90);
 
 async function startSound(src = null) {
   if (!(await chrome.offscreen.hasDocument())) {

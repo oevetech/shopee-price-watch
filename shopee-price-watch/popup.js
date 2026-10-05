@@ -279,6 +279,8 @@ $('f').onsubmit = async (e) => {
 };
 
 $('stop').onclick = () => chrome.runtime.sendMessage({ type: 'stopSound' });
+chrome.storage.local.get('voice').then(({ voice = {} }) => { $('voiceOn').checked = !!voice.enabled; });
+$('voiceOn').onchange = () => chrome.storage.local.set({ voice: { enabled: $('voiceOn').checked } });
 $('test').onclick = () => chrome.runtime.sendMessage({ type: 'testAlert' });
 
 chrome.storage.onChanged.addListener(() => { render(); updateSoundInfo(); });

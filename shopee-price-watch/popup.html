@@ -134,6 +134,20 @@
     </div>
     <div id="cpInfo" class="hint"></div>
   </div>
+  <div class="defsound">
+    <label><b>Home Assistant</b> — cria entidades e envia notificação de cupom, captcha e produto no preço alvo</label>
+    <label style="display:flex;align-items:center;gap:6px;margin:6px 0;font-size:12px;color:var(--fg)"><input type="checkbox" id="haOn"> Ativar integração com o Home Assistant</label>
+    <label>Endereço do Home Assistant</label>
+    <input type="text" id="haUrl" placeholder="http://homeassistant.local" value="http://homeassistant.local">
+    <div style="margin-top:6px"><label>Token de acesso de longa duração (Perfil do HA → Segurança)</label><input type="password" id="haToken" placeholder="cole o token aqui" autocomplete="off"></div>
+    <div style="margin-top:6px"><label>Serviço de notificação (opcional) — ex.: notify.mobile_app_meu_celular</label><input type="text" id="haNotify" placeholder="vazio = só entidades e evento"></div>
+    <div class="row" style="margin-top:6px">
+      <button type="button" id="haSave" class="primary" style="flex:1">Salvar</button>
+      <button type="button" id="haTest">Testar conexão</button>
+    </div>
+    <div id="haInfo" class="hint"></div>
+    <div class="hint">Entidades: binary_sensor.shopee_cupom, binary_sensor.shopee_captcha e binary_sensor.shopee_produto_alvo. Evento: shopee_price_watch.</div>
+  </div>
   <footer>
     <button id="stop">Silenciar alarme</button>
     <button id="test">Testar alarme</button>

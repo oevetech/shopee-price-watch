@@ -386,3 +386,58 @@ $('cpSndFile').onchange = async () => {
 };
 $('cpSndClear').onclick = async () => { await removeSound('coupon'); updateSoundInfo(); };
 $('cpSndPlay').onclick = () => previewSound('coupon');
+
+
+// Integração com o Home Assistant
+(function () {
+  const $h = (id) => document.getElementById(id);
+  const ago = (t) => { if (!t) return 'nunca'; const m = Math.round((Date.now() - t) / 60000); return m < 1 ? 'agora' : `há ${m} min`; };
+  async function load(fill) {
+    const { ha } = await chrome.storage.local.get('ha');
+    const c = ha || {};
+    if (fill) {
+      $h('haOn').checked = !!c.enabled;
+      $h('haUrl').value = c.url || 'http://homeassistant.local';
+      $h('haToken').value = c.token || '';
+      $h('haNotify').value = c.notify || '';
+    }
+    $h('haInfo').textContent = !c.enabled ? 'Desativado.' : `Ativo${c.lastStatus ? ' · ' + c.lastStatus : ''}${c.lastSync ? ' · sincronizado ' + ago(c.lastSync) : ''}`;
+    $h('haInfo').classList.toggle('err', !!(c.lastStatus && c.lastStatus.startsWith('erro')));
+  }
+  function normUrl(u) {
+    u = u.trim();
+    if (u && !/^https?:\/\//i.test(u)) u = 'http://' + u;
+    try { const x = new URL(u); return x.origin; } catch { return null; }
+  }
+  // Salva e pede ao Chrome permissão para falar com o endereço do HA (precisa vir de um clique).
+  async function save() {
+    const on = $h('haOn').checked;
+    const url = normUrl($h('haUrl').value || 'http://homeassistant.local');
+    const token = $h('haToken').value.trim();
+    if (on && (!url || !token)) { alert('Para ativar, informe o endereço do Home Assistant (ex.: http://homeassistant.local) e o token.'); return false; }
+    if (url) {
+      const u = new URL(url);
+      const granted = await chrome.permissions.request({ origins: [`${u.protocol}//${u.hostname}/*`] }).catch(() => false);
+      if (!granted && on) { alert('O Chrome precisa de permissão para acessar esse endereço. Tente salvar de novo e aceite.'); return false; }
+    }
+    const { ha = {} } = await chrome.storage.local.get('ha');
+    await chrome.storage.local.set({ ha: { ...ha, enabled: on, url: url || '', token, notify: $h('haNotify').value.trim(), lastStatus: '' } });
+    if (url) $h('haUrl').value = url;
+    return true;
+  }
+  $h('haSave').onclick = async () => {
+    if (!(await save())) return;
+    if ($h('haOn').checked) await chrome.runtime.sendMessage({ type: 'haSync' }).catch(() => {});
+    load(false);
+  };
+  $h('haTest').onclick = async () => {
+    $h('haOn').checked = true;
+    if (!(await save())) return;
+    $h('haInfo').textContent = 'testando…';
+    const r = await chrome.runtime.sendMessage({ type: 'haTest' }).catch((e) => ({ ok: false, error: String(e) }));
+    await load(false);
+    if (r && !r.ok) $h('haInfo').textContent = 'erro: ' + (r.error || 'falhou');
+  };
+  chrome.storage.onChanged.addListener((ch) => { if (ch.ha) load(false); });
+  load(true);
+})();

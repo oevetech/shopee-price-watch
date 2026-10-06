@@ -515,3 +515,24 @@ $('cpSndPlay').onclick = () => previewSound('coupon');
   chrome.storage.onChanged.addListener((ch) => { if (ch.ha) load(false); });
   load(true);
 })();
+
+
+// Chave geral: liga/desliga todas as checagens automáticas (produtos e cupons)
+(function () {
+  const btn = document.getElementById('masterBtn');
+  const paint = (on) => {
+    btn.textContent = on ? 'Monitor LIGADO — clique para desativar tudo' : 'Monitor DESLIGADO — clique para ativar tudo';
+    btn.classList.toggle('primary', on);
+    btn.style.background = on ? '' : 'var(--bad)';
+    btn.style.borderColor = on ? '' : 'var(--bad)';
+    btn.style.color = on ? '' : '#fff';
+  };
+  chrome.storage.local.get('masterOn').then(({ masterOn }) => paint(masterOn !== false));
+  btn.onclick = async () => {
+    const { masterOn } = await chrome.storage.local.get('masterOn');
+    const next = masterOn === false; // inverte
+    await chrome.storage.local.set({ masterOn: next });
+    paint(next);
+  };
+  chrome.storage.onChanged.addListener((ch) => { if (ch.masterOn) paint(ch.masterOn.newValue !== false); });
+})();

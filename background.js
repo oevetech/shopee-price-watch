@@ -55,6 +55,7 @@ function enqueue(id) {
   queue = queue
     .then(async () => {
       const force = manual.delete(id);
+      if (!(await masterOn())) return; // chave geral desligada: nada é checado (nem manualmente)
       if (await captchaState()) { // pausado: aguardando o usuário resolver a verificação
         if (id === 'coupon') await updateCoupon((c) => { c.lastStatus = 'pausado: resolva a verificação na janela aberta'; });
         return;
@@ -67,9 +68,15 @@ function enqueue(id) {
   return queue;
 }
 
+async function masterOn() {
+  const { masterOn } = await chrome.storage.local.get('masterOn');
+  return masterOn !== false; // padrão: ligado
+}
+
 async function runDue() {
   await closeIdleReader();
   haHeartbeat();
+  if (!(await masterOn())) return; // chave geral desligada: nenhuma checagem
   if (await captchaState()) { await checkCaptchaResolved(); return; }
   const now = Date.now();
   const { coupon } = await chrome.storage.local.get('coupon');
@@ -722,4 +729,17 @@ chrome.runtime.onMessage.addListener((msg, _sender, sendResponse) => {
       .then(() => sendResponse({ ok: true }));
   } else return;
   return true; // resposta assíncrona
+});
+
+
+// Ao desligar a chave geral: fecha a janela de leitura e para qualquer alarme tocando.
+chrome.storage.onChanged.addListener(async (ch, area) => {
+  if (area !== 'local' || !ch.masterOn || ch.masterOn.newValue !== false) return;
+  try {
+    await loadReader();
+    if (reader) { chrome.windows.remove(reader.winId).catch(() => {}); reader = null; saveReader(); }
+    await sweepStrays();
+    chrome.notifications.getAll((all) => Object.keys(all || {}).filter((k) => k.startsWith('alert:')).forEach((k) => chrome.notifications.clear(k)));
+    await stopSound();
+  } catch (_) {}
 });

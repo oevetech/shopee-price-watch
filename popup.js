@@ -308,6 +308,8 @@ $('f').onsubmit = async (e) => {
 
 $('stop').onclick = () => chrome.runtime.sendMessage({ type: 'stopSound' });
 chrome.storage.local.get('voice').then(({ voice = {} }) => { $('voiceOn').checked = !!voice.enabled; });
+chrome.storage.local.get('autoScroll').then(({ autoScroll = {} }) => { $('autoScrollOn').checked = autoScroll.enabled !== false; });
+$('autoScrollOn').onchange = () => chrome.storage.local.set({ autoScroll: { enabled: $('autoScrollOn').checked } });
 $('voiceOn').onchange = () => chrome.storage.local.set({ voice: { enabled: $('voiceOn').checked } });
 $('test').onclick = () => chrome.runtime.sendMessage({ type: 'testAlert' });
 

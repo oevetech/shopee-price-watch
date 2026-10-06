@@ -26,6 +26,11 @@ function updateProduct(id, mutate) {
   });
 }
 
+async function getAutoScroll() {
+  const { autoScroll } = await chrome.storage.local.get('autoScroll');
+  return autoScroll ? !!autoScroll.enabled : true; // padrão: ligado
+}
+
 // ---------- alarme ----------
 async function ensureAlarm() {
   const a = await chrome.alarms.get(TICK);
@@ -99,7 +104,7 @@ function waitComplete(tabId, ms) {
 }
 
 // Roda DENTRO da página (precisa ser autocontida).
-async function scrape() {
+async function scrape(autoScroll) {
   const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
   const toNum = (s) => parseFloat(s.replace(/\./g, '').replace(',', '.'));
 
@@ -148,7 +153,7 @@ async function scrape() {
       // rola como uma pessoa: às vezes até a metade, às vezes até o fim (carrega descrição/avaliações)
       const frac = Math.random() < 0.5 ? 0.5 : 1;
       let y = 0;
-      for (let s = 0; s < 40; s++) {
+      for (let s = 0; s < (autoScroll ? 40 : 0); s++) { // só rola se "rolar a página automaticamente" estiver marcado
         const max = Math.max(0, document.documentElement.scrollHeight - innerHeight); // recalcula: a página cresce ao carregar
         const goal = max * frac;
         if (y >= goal - 5) break;
@@ -252,7 +257,7 @@ async function fetchPrice(url) {
     try {
       w = await getReader(url, attempt === 2); // 3ª tentativa: janela com foco (garante renderização)
       await waitComplete(w.tabId, 30000);
-      const [res] = await chrome.scripting.executeScript({ target: { tabId: w.tabId }, func: scrape });
+      const [res] = await chrome.scripting.executeScript({ target: { tabId: w.tabId }, func: scrape, args: [await getAutoScroll()] });
       const r = res?.result;
       if (!r) throw new Error('sem resposta da página');
       if (r.captcha) {
@@ -360,7 +365,7 @@ function couponPattern(value) {
 }
 
 // Roda DENTRO da página: procura o valor do cupom no texto (rolando para carregar listas).
-async function scanCoupon(src, flags, name, mode, kind, num) {
+async function scanCoupon(src, flags, name, mode, kind, num, autoScroll) {
   const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
   const re = new RegExp(src, flags);
   const norm = (s) => s.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase();
@@ -393,7 +398,7 @@ async function scanCoupon(src, flags, name, mode, kind, num) {
       if (!want || norm(ctx).includes(want)) hits.push(want ? ctx : l);
     });
     if (hits.length) return { found: true, hits: hits.slice(0, 3) };
-    if (i % 3 === 2) window.scrollBy(0, Math.max(400, innerHeight * 0.8)); // carrega itens "preguiçosos"
+    if (autoScroll && i % 3 === 2) window.scrollBy(0, Math.max(400, innerHeight * 0.8)); // carrega itens "preguiçosos"
     await sleep(700);
   }
   return { found: false };
@@ -412,7 +417,7 @@ async function checkCoupon(force = false) {
   try {
     const w = await getReader(coupon.url, false);
     await waitComplete(w.tabId, 30000);
-    const [res] = await chrome.scripting.executeScript({ target: { tabId: w.tabId }, func: scanCoupon, args: [pat.src, pat.flags, coupon.name || '', coupon.mode === 'gte' ? 'gte' : 'eq', pat.kind, pat.num] });
+    const [res] = await chrome.scripting.executeScript({ target: { tabId: w.tabId }, func: scanCoupon, args: [pat.src, pat.flags, coupon.name || '', coupon.mode === 'gte' ? 'gte' : 'eq', pat.kind, pat.num, await getAutoScroll()] });
     r = res && res.result;
     if (!r) err = 'sem resposta da página';
     else if (r.captcha) { await enterCaptchaPause(w, coupon.url); err = 'captcha: resolva na janela aberta'; }

@@ -1,0 +1,170 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<style>
+  :root { --bg:#fff; --fg:#1d1d1f; --mut:#6b7280; --line:#e5e7eb; --acc:#ee4d2d; --ok:#15803d; --bad:#b91c1c; --card:#f8f8f8; }
+  @media (prefers-color-scheme: dark) { :root { --bg:#1c1c1e; --fg:#f2f2f7; --mut:#9ca3af; --line:#3a3a3c; --card:#2a2a2d; --ok:#4ade80; --bad:#f87171; } }
+  * { box-sizing: border-box; }
+  body { width: 400px; margin: 0; padding: 12px; background: var(--bg); color: var(--fg); font: 13px/1.4 system-ui, sans-serif; }
+  h1 { font-size: 15px; margin: 0 0 8px; }
+  form { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; padding: 10px; background: var(--card); border-radius: 8px; margin-bottom: 12px; }
+  form .full { grid-column: 1 / -1; }
+  label { display: block; font-size: 11px; color: var(--mut); margin-bottom: 2px; }
+  input[type=text], input[type=number], select { width: 100%; padding: 6px 8px; border: 1px solid var(--line); border-radius: 6px; background: var(--bg); color: var(--fg); font: inherit; }
+  button { padding: 6px 10px; border: 1px solid var(--line); border-radius: 6px; background: var(--bg); color: var(--fg); font: inherit; cursor: pointer; }
+  button.primary { background: var(--acc); border-color: var(--acc); color: #fff; }
+  button:hover { filter: brightness(0.95); }
+  .row { display: flex; gap: 6px; }
+  [hidden] { display: none !important; }
+  .item.editing { outline: 2px solid var(--acc); }
+  .item { border: 1px solid var(--line); border-radius: 8px; padding: 8px 10px; margin-bottom: 8px; }
+  .item.hit { border-color: var(--ok); }
+  .name { font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .name a { color: inherit; text-decoration: none; }
+  .meta { color: var(--mut); font-size: 11.5px; margin: 2px 0 6px; }
+  .price { font-size: 16px; font-weight: 700; }
+  .price.hit { color: var(--ok); }
+  .hint { font-size: 11px; color: var(--mut); margin-top: 2px; }
+  .defsound { padding: 10px; background: var(--card); border-radius: 8px; margin-bottom: 8px; }
+  .err { color: var(--bad); }
+  .tools { display: flex; gap: 6px; margin-top: 6px; align-items: center; }
+  .tools label { display: flex; align-items: center; gap: 4px; margin: 0 0 0 auto; font-size: 12px; color: var(--fg); }
+  .empty { color: var(--mut); text-align: center; padding: 14px; }
+  .tabs { display: flex; gap: 4px; margin-bottom: 10px; border-bottom: 1px solid var(--line); }
+  .tab { border: 0; border-bottom: 2px solid transparent; border-radius: 0; background: none; padding: 6px 12px; color: var(--mut); font-weight: 600; }
+  .tab.active { color: var(--acc); border-bottom-color: var(--acc); }
+  .pane { max-height: 520px; overflow-y: auto; }
+  footer { display: flex; gap: 6px; margin-top: 4px; }
+  .credit { margin-top: 10px; padding-top: 8px; border-top: 1px solid var(--line); text-align: center; font-size: 11px; color: var(--mut); }
+  .credit a { display: inline-flex; align-items: center; gap: 5px; color: var(--fg); font-weight: 600; text-decoration: none; padding: 3px 8px; border-radius: 999px; }
+  .credit a:hover { background: #ff0033; color: #fff; }
+  .credit svg { width: 16px; height: 16px; fill: #ff0033; }
+  .credit a:hover svg { fill: #fff; }
+</style>
+</head>
+<body>
+  <h1>Shopee Price Watch</h1>
+  <div id="cap" class="defsound err" hidden>
+    Shopee pediu verificação de imagem. Resolva na janela aberta; as checagens estão pausadas.
+    <div class="row" style="margin-top:6px"><button type="button" id="capResume">Já resolvi / Retomar</button></div>
+  </div>
+  <div class="tabs">
+    <button type="button" class="tab active" data-tab="prod">Produtos</button>
+    <button type="button" class="tab" data-tab="cfg">Sons e alarme</button>
+  </div>
+  <div id="pane-prod" class="pane">
+  <form id="f">
+    <div class="full"><label>URL do produto</label><input type="text" id="url" required placeholder="https://shopee.com.br/..."></div>
+    <div class="full"><label>Nome (opcional)</label><input type="text" id="name" placeholder="pego da página se ficar vazio"></div>
+    <div><label>Preço alvo (R$)</label><input type="text" id="target" required placeholder="ex.: 2900 ou 2.900,00"></div>
+    <div><label>Checar a cada (min)</label><input type="number" id="interval" min="1" value="15" title="Intervalos muito curtos podem fazer a Shopee falhar/bloquear. Recomendado: 5 min ou mais."></div>
+    <div class="full">
+      <label>Avisar quando o preço for</label>
+      <select id="mode">
+        <option value="lte">menor ou igual ao alvo (≤)</option>
+        <option value="lt">estritamente menor que o alvo (&lt;)</option>
+      </select>
+    </div>
+    <div class="full">
+      <label>Som deste produto (opcional — vazio usa o som padrão)</label>
+      <div class="row">
+        <input type="file" id="soundFile" accept="audio/*" style="flex:1;min-width:0">
+        <button type="button" id="soundClear" hidden>Remover</button>
+      </div>
+      <div id="soundInfo" class="hint"></div>
+    </div>
+    <div class="full row">
+      <button type="button" id="useTab">Usar aba atual</button>
+      <button type="button" id="cancel" hidden>Cancelar</button>
+      <button type="submit" class="primary" id="submit" style="flex:1">Adicionar</button>
+    </div>
+  </form>
+  <div class="hint" style="font-size:11px;color:var(--mut);margin:-6px 0 10px">Dica: abaixo de 5 min a Shopee pode falhar em carregar o preço.</div>
+  <div id="undoBar" class="defsound" hidden><div class="row"><span id="undoText" class="hint" style="flex:1"></span><button type="button" id="undoBtn" class="primary">Desfazer exclusão</button></div></div>
+  <div id="list"></div>
+  </div>
+  <div id="pane-cfg" class="pane" hidden>
+  <div class="defsound">
+    <label><b>Voz</b> — fala o nome do produto quando achar desconto (também cupom e verificação)</label>
+    <label style="display:flex;align-items:center;gap:6px;margin:6px 0;font-size:12px;color:var(--fg)"><input type="checkbox" id="voiceOn"> Anunciar por voz (em vez do som). Use "Testar alarme" para ouvir</label>
+  </div>
+  <div class="defsound">
+    <label>Som padrão (para produtos sem som próprio; vazio usa o som que já vem na extensão)</label>
+    <div class="row">
+      <input type="file" id="defFile" accept="audio/*" style="flex:1;min-width:0">
+      <button type="button" id="defPlay" title="Ouvir">▶</button>
+      <button type="button" id="defClear" hidden>Remover</button>
+    </div>
+    <div id="defInfo" class="hint"></div>
+  </div>
+  <div class="defsound">
+    <label>Som da verificação (captcha) — toca quando a Shopee pedir a imagem. Vazio usa o som que já vem na extensão</label>
+    <div class="row">
+      <input type="file" id="capFile" accept="audio/*" style="flex:1;min-width:0">
+      <button type="button" id="capPlay" title="Ouvir">▶</button>
+      <button type="button" id="capClear" hidden>Remover</button>
+    </div>
+    <div id="capInfo" class="hint"></div>
+  </div>
+  <div class="defsound">
+    <label>Som do cupom encontrado — vazio usa o som que já vem na extensão</label>
+    <div class="row">
+      <input type="file" id="cpSndFile" accept="audio/*" style="flex:1;min-width:0">
+      <button type="button" id="cpSndPlay" title="Ouvir">▶</button>
+      <button type="button" id="cpSndClear" hidden>Remover</button>
+    </div>
+    <div id="cpSndInfo" class="hint"></div>
+  </div>
+  <div class="defsound">
+    <label>Monitor de cupons — página de cupons (link)</label>
+    <input type="text" id="cpUrl" placeholder="https://shopee.com.br/...">
+    <div style="margin-top:6px"><label>Nome do cupom (opcional) — ex.: tecnologia</label><input type="text" id="cpName" placeholder="vazio = qualquer cupom com esse valor"></div>
+    <div class="row" style="margin-top:6px">
+      <div style="flex:1"><label>Valor do cupom</label><input type="text" id="cpValue" placeholder="ex.: 50 (R$50) ou 10%"></div>
+      <div style="flex:1"><label>Condição</label>
+        <select id="cpMode"><option value="eq" selected>Igual ao valor</option><option value="gte">Igual ou maior</option></select>
+      </div>
+      <div style="flex:1"><label>Checar a cada</label>
+        <select id="cpInterval">
+          <option value="5">5 min</option><option value="10">10 min</option><option value="15" selected>15 min</option>
+          <option value="20">20 min</option><option value="25">25 min</option><option value="30">30 min</option><option value="60">60 min</option>
+        </select>
+      </div>
+    </div>
+    <label style="display:flex;align-items:center;gap:6px;margin:8px 0 0;font-size:12px;color:var(--fg)"><input type="checkbox" id="cpOn"> Ativar monitor de cupons</label>
+    <div class="row" style="margin-top:6px">
+      <button type="button" id="cpSave" class="primary" style="flex:1">Salvar</button>
+      <button type="button" id="cpNow">Checar agora</button>
+    </div>
+    <div id="cpInfo" class="hint"></div>
+  </div>
+  <div class="defsound">
+    <label><b>Home Assistant</b> — cria entidades e envia notificação de cupom, captcha e produto no preço alvo</label>
+    <label style="display:flex;align-items:center;gap:6px;margin:6px 0;font-size:12px;color:var(--fg)"><input type="checkbox" id="haOn"> Ativar integração com o Home Assistant</label>
+    <label>Endereço do Home Assistant</label>
+    <input type="text" id="haUrl" placeholder="http://homeassistant.local" value="http://homeassistant.local">
+    <div style="margin-top:6px"><label>Token de acesso de longa duração (Perfil do HA → Segurança)</label><input type="password" id="haToken" placeholder="cole o token aqui" autocomplete="off"></div>
+    <div style="margin-top:6px"><label>Serviço de notificação (opcional) — ex.: notify.mobile_app_meu_celular</label><input type="text" id="haNotify" placeholder="vazio = só entidades e evento"></div>
+    <div class="row" style="margin-top:6px">
+      <button type="button" id="haSave" class="primary" style="flex:1">Salvar</button>
+      <button type="button" id="haTest">Testar conexão</button>
+    </div>
+    <div id="haInfo" class="hint"></div>
+    <div class="hint">Entidades: binary_sensor.shopee_cupom, binary_sensor.shopee_captcha e binary_sensor.shopee_produto_alvo. Evento: shopee_price_watch.</div>
+  </div>
+  <footer>
+    <button id="stop">Silenciar alarme</button>
+    <button id="test">Testar alarme</button>
+  </footer>
+  </div>
+  <div class="credit">
+    Feito por
+    <a href="https://www.youtube.com/@oevetech" target="_blank" rel="noopener noreferrer" title="Canal oEveTech no YouTube">
+      <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M23.5 6.2a3 3 0 0 0-2.1-2.1C19.5 3.6 12 3.6 12 3.6s-7.5 0-9.4.5A3 3 0 0 0 .5 6.2C0 8.1 0 12 0 12s0 3.9.5 5.8a3 3 0 0 0 2.1 2.1c1.9.5 9.4.5 9.4.5s7.5 0 9.4-.5a3 3 0 0 0 2.1-2.1c.5-1.9.5-5.8.5-5.8s0-3.9-.5-5.8zM9.6 15.6V8.4l6.2 3.6-6.2 3.6z"/></svg>
+      @oevetech
+    </a>
+  </div>
+  <script src="popup.js"></script>
+</body>
+</html>

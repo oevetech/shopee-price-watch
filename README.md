@@ -3,3 +3,8 @@ Ela fica verificando os links que colocamos a cada x minutos, se o preço for ig
 e tem integração com homeassistant.
 
 Importante: o mau uso com muitos links e com tempo curto pode levar ao banimento nunca use em conta de tranalho!!!
+
+
+Sempre coloque links com tempos diferentes!!!
+
+Mesmo se cuidando pode haver banimentos cuidado semore use uma conta que não a principal de tralho!!!!

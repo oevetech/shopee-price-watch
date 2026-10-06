@@ -401,7 +401,7 @@ $('capPlay').onclick = () => previewSound('captcha');
     const { coupon } = await chrome.storage.local.get('coupon');
     const c = coupon || {};
     if (fillForm) {
-      $c('cpUrl').value = c.url || '';
+      $c('cpUrl').value = c.url || 'https://shopee.com.br/m/cupom-de-desconto';
       $c('cpName').value = c.name || '';
       $c('cpValue').value = c.value || '';
       $c('cpMode').value = c.mode === 'gte' ? 'gte' : 'eq';

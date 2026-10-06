@@ -58,7 +58,7 @@
     <div class="full"><label>URL do produto</label><input type="text" id="url" required placeholder="https://shopee.com.br/..."></div>
     <div class="full"><label>Nome (opcional)</label><input type="text" id="name" placeholder="pego da página se ficar vazio"></div>
     <div><label>Preço alvo (R$)</label><input type="text" id="target" required placeholder="ex.: 2900 ou 2.900,00"></div>
-    <div><label>Checar a cada (min)</label><input type="number" id="interval" min="1" value="15" title="Intervalos muito curtos podem fazer a Shopee falhar/bloquear. Recomendado: 5 min ou mais."></div>
+    <div><label>Checar a cada (min)</label><input type="number" id="interval" min="15" value="15" title="Mínimo 15 minutos: intervalos menores têm risco de banimento pela Shopee."></div>
     <div class="full">
       <label>Avisar quando o preço for</label>
       <select id="mode">
@@ -140,7 +140,7 @@
     <div style="margin-top:6px">
       <div><label>Checar a cada</label>
         <select id="cpInterval">
-          <option value="5">5 min</option><option value="10">10 min</option><option value="15" selected>15 min</option>
+          <option value="15" selected>15 min</option>
           <option value="20">20 min</option><option value="25">25 min</option><option value="30">30 min</option><option value="60">60 min</option>
         </select>
       </div>

@@ -2,7 +2,7 @@
 // Um alarme de 1 min dispara; cada produto tem seu próprio intervalo e só é checado quando vence.
 
 const TICK = 'shopee-tick';
-const MIN_INTERVAL = 1; // minutos
+const MIN_INTERVAL = 15; // minutos (mínimo seguro; abaixo disso há risco de banimento)
 
 // ---------- storage (escritas serializadas) ----------
 let lock = Promise.resolve();
@@ -74,7 +74,7 @@ async function runDue() {
   const now = Date.now();
   const { coupon } = await chrome.storage.local.get('coupon');
   if (coupon && coupon.enabled && coupon.url && (coupon.value || coupon.value2)) {
-    const every = Math.max(5, Number(coupon.interval) || 15) * 60000;
+    const every = Math.max(MIN_INTERVAL, Number(coupon.interval) || 15) * 60000;
     if (!coupon.lastCheck || now - coupon.lastCheck >= every - 5000) enqueue('coupon');
   }
   const products = await getProducts();

@@ -1,5 +1,8 @@
 const $ = (id) => document.getElementById(id);
 let editingId = null;
+const MIN_SAFE_INTERVAL = 15; // minutos — abaixo disso há risco de banimento
+const RISK_MSG = '⚠️ RISCO DE BANIMENTO: checar com intervalo menor que 15 minutos pode fazer a Shopee bloquear sua conta/IP. O mínimo permitido é 15 minutos. Aumente o tempo para poder salvar.';
+
 const isHit = (p) => p.lastPrice != null && (p.mode === 'lt' ? p.lastPrice < p.target : p.lastPrice <= p.target);
 const fmt = (v) => Number(v).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
 
@@ -74,7 +77,7 @@ async function render() {
     const status = p.lastStatus && p.lastStatus.startsWith('erro') ? ` · ${p.lastStatus}` : '';
     meta.textContent =
       `alvo ${p.mode === 'lt' ? '< ' : '≤ '}${fmt(p.target)} · menor visto ${p.lowest != null ? fmt(p.lowest) : '—'} · ` +
-      `a cada ${p.interval} min · última ${ago(p.lastCheck)}` +
+      `a cada ${Math.max(MIN_SAFE_INTERVAL, p.interval)} min · última ${ago(p.lastCheck)}` +
       (p.stock != null ? ` · estoque ${p.stock}` : '') + ` · som: ${meta[p.id] || 'padrão'}` + status;
     if (status) meta.classList.add('err');
 
@@ -243,7 +246,7 @@ function startEdit(p) {
   $('url').value = p.url;
   $('name').value = p.customName ? p.name : '';
   $('target').value = String(p.target).replace('.', ',');
-  $('interval').value = p.interval;
+  $('interval').value = Math.max(MIN_SAFE_INTERVAL, p.interval);
   $('mode').value = p.mode === 'lt' ? 'lt' : 'lte';
   $('submit').textContent = 'Salvar alterações';
   $('cancel').hidden = false;
@@ -269,7 +272,8 @@ $('f').onsubmit = async (e) => {
   e.preventDefault();
   const url = cleanUrl($('url').value.trim());
   const target = parseBR($('target').value);
-  const interval = Math.max(1, parseInt($('interval').value, 10) || 15);
+  const interval = parseInt($('interval').value, 10) || 0;
+  if (interval < MIN_SAFE_INTERVAL) return alert(RISK_MSG);
   const mode = $('mode').value === 'lt' ? 'lt' : 'lte';
   if (!url || !/shopee\.com\.br/.test(url)) return alert('URL inválida (precisa ser shopee.com.br).');
   if (target == null) return alert('Preço alvo inválido.');
@@ -408,7 +412,7 @@ $('capPlay').onclick = () => previewSound('captcha');
       $c('cpName2').value = c.name2 || '';
       $c('cpValue2').value = c.value2 || '';
       $c('cpMode2').value = c.mode2 === 'gte' ? 'gte' : 'eq';
-      $c('cpInterval').value = String(c.interval || 15);
+      $c('cpInterval').value = String(Math.max(MIN_SAFE_INTERVAL, c.interval || 15));
       $c('cpOn').checked = !!c.enabled;
     }
     const st = c.lastStatus ? ` · ${c.lastStatus}` : '';
@@ -417,6 +421,7 @@ $('capPlay').onclick = () => previewSound('captcha');
       : (c.lastStatus ? `Desativado (checagem manual)${st}` : 'Desativado.');
   }
   $c('cpSave').onclick = async () => {
+    if (Number($c('cpInterval').value) < MIN_SAFE_INTERVAL) return alert(RISK_MSG);
     const url = $c('cpUrl').value.trim();
     const value = $c('cpValue').value.trim() || $c('cpValue2').value.trim();
     const name = $c('cpName').value.trim();
@@ -429,6 +434,7 @@ $('capPlay').onclick = () => previewSound('captcha');
     load(false);
   };
   $c('cpNow').onclick = async () => {
+    if (Number($c('cpInterval').value) < MIN_SAFE_INTERVAL) return alert(RISK_MSG);
     const url = $c('cpUrl').value.trim();
     const value = $c('cpValue').value.trim() || $c('cpValue2').value.trim();
     if (!/^https:\/\/([\w-]+\.)*shopee\.com\.br\//.test(url) || !value) {

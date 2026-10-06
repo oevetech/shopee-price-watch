@@ -405,6 +405,9 @@ $('capPlay').onclick = () => previewSound('captcha');
       $c('cpName').value = c.name || '';
       $c('cpValue').value = c.value || '';
       $c('cpMode').value = c.mode === 'gte' ? 'gte' : 'eq';
+      $c('cpName2').value = c.name2 || '';
+      $c('cpValue2').value = c.value2 || '';
+      $c('cpMode2').value = c.mode2 === 'gte' ? 'gte' : 'eq';
       $c('cpInterval').value = String(c.interval || 15);
       $c('cpOn').checked = !!c.enabled;
     }
@@ -415,24 +418,24 @@ $('capPlay').onclick = () => previewSound('captcha');
   }
   $c('cpSave').onclick = async () => {
     const url = $c('cpUrl').value.trim();
-    const value = $c('cpValue').value.trim();
+    const value = $c('cpValue').value.trim() || $c('cpValue2').value.trim();
     const name = $c('cpName').value.trim();
     const on = $c('cpOn').checked;
     if (on && (!/^https:\/\/([\w-]+\.)*shopee\.com\.br\//.test(url) || !value)) {
       return alert('Para ativar, informe um link de shopee.com.br e o valor do cupom.');
     }
     const { coupon = {} } = await chrome.storage.local.get('coupon');
-    await chrome.storage.local.set({ coupon: { ...coupon, url, value, name, mode: $c('cpMode').value, interval: Number($c('cpInterval').value), enabled: on, lastCheck: null, alerted: false, lastStatus: '' } });
+    await chrome.storage.local.set({ coupon: { ...coupon, url, value, name, mode: $c('cpMode').value, name2: $c('cpName2').value.trim(), value2: $c('cpValue2').value.trim(), mode2: $c('cpMode2').value, interval: Number($c('cpInterval').value), enabled: on, lastCheck: null, alerted: false, alerted2: false, lastStatus: '' } });
     load(false);
   };
   $c('cpNow').onclick = async () => {
     const url = $c('cpUrl').value.trim();
-    const value = $c('cpValue').value.trim();
+    const value = $c('cpValue').value.trim() || $c('cpValue2').value.trim();
     if (!/^https:\/\/([\w-]+\.)*shopee\.com\.br\//.test(url) || !value) {
       return alert('Informe um link de shopee.com.br e o valor do cupom.');
     }
     const { coupon = {} } = await chrome.storage.local.get('coupon');
-    await chrome.storage.local.set({ coupon: { ...coupon, url, value, name: $c('cpName').value.trim(), mode: $c('cpMode').value, interval: Number($c('cpInterval').value), enabled: $c('cpOn').checked, lastStatus: 'na fila…' } });
+    await chrome.storage.local.set({ coupon: { ...coupon, url, value, name: $c('cpName').value.trim(), mode: $c('cpMode').value, name2: $c('cpName2').value.trim(), value2: $c('cpValue2').value.trim(), mode2: $c('cpMode2').value, interval: Number($c('cpInterval').value), enabled: $c('cpOn').checked, lastStatus: 'na fila…' } });
     chrome.runtime.sendMessage({ type: 'checkCoupon' }).then(() => load(false)).catch(() => load(false));
   };
   chrome.storage.onChanged.addListener((ch) => { if (ch.coupon) load(false); });

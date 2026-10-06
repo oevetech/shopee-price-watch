@@ -73,7 +73,7 @@ async function runDue() {
   if (await captchaState()) { await checkCaptchaResolved(); return; }
   const now = Date.now();
   const { coupon } = await chrome.storage.local.get('coupon');
-  if (coupon && coupon.enabled && coupon.url && coupon.value) {
+  if (coupon && coupon.enabled && coupon.url && (coupon.value || coupon.value2)) {
     const every = Math.max(5, Number(coupon.interval) || 15) * 60000;
     if (!coupon.lastCheck || now - coupon.lastCheck >= every - 5000) enqueue('coupon');
   }
@@ -406,48 +406,64 @@ async function scanCoupon(src, flags, name, mode, kind, num, autoScroll) {
 
 async function checkCoupon(force = false) {
   const { coupon } = await chrome.storage.local.get('coupon');
-  if (!coupon || !coupon.url || !coupon.value) return;
+  if (!coupon || !coupon.url) return;
   if (!coupon.enabled && !force) return;
+  // Até 2 cupons na mesma abertura da página; só checa os que estiverem preenchidos.
+  const specs = [];
+  if (coupon.value) specs.push({ k: 1, name: coupon.name || '', value: coupon.value, mode: coupon.mode, key: 'alerted', nid: 'alert:coupon' });
+  if (coupon.value2) specs.push({ k: 2, name: coupon.name2 || '', value: coupon.value2, mode: coupon.mode2, key: 'alerted2', nid: 'alert:coupon2' });
+  if (!specs.length) return;
   await updateCoupon((c) => { c.lastStatus = 'checando…'; });
-  const pat = couponPattern(coupon.value);
   const now = Date.now();
-  if (!pat) { await updateCoupon((c) => { c.lastCheck = now; c.lastStatus = 'erro: valor do cupom inválido'; }); return; }
+  for (const sp of specs) {
+    sp.pat = couponPattern(sp.value);
+    if (!sp.pat) { await updateCoupon((c) => { c.lastCheck = now; c.lastStatus = `erro: valor do cupom ${sp.k} inválido`; }); return; }
+  }
 
-  let r = null, err = null;
+  let err = null;
   try {
     const w = await getReader(coupon.url, false);
     await waitComplete(w.tabId, 30000);
-    const [res] = await chrome.scripting.executeScript({ target: { tabId: w.tabId }, func: scanCoupon, args: [pat.src, pat.flags, coupon.name || '', coupon.mode === 'gte' ? 'gte' : 'eq', pat.kind, pat.num, await getAutoScroll()] });
-    r = res && res.result;
-    if (!r) err = 'sem resposta da página';
-    else if (r.captcha) { await enterCaptchaPause(w, coupon.url); err = 'captcha: resolva na janela aberta'; }
-    else if (r.login) err = 'Shopee pediu login — entre na sua conta no Chrome';
+    const auto = await getAutoScroll();
+    for (const sp of specs) {
+      const [res] = await chrome.scripting.executeScript({ target: { tabId: w.tabId }, func: scanCoupon, args: [sp.pat.src, sp.pat.flags, sp.name, sp.mode === 'gte' ? 'gte' : 'eq', sp.pat.kind, sp.pat.num, auto] });
+      const r = res && res.result;
+      if (!r) { err = 'sem resposta da página'; break; }
+      if (r.captcha) { await enterCaptchaPause(w, coupon.url); err = 'captcha: resolva na janela aberta'; break; }
+      if (r.login) { err = 'Shopee pediu login — entre na sua conta no Chrome'; break; }
+      sp.r = r;
+    }
   } catch (e) { err = e.message || String(e); }
   if (reader) { reader.last = Date.now(); saveReader(); }
 
   if (err) { await updateCoupon((c) => { c.lastCheck = now; c.lastStatus = 'erro: ' + err; }); return; }
 
-  let shouldAlert = false, cleared = false;
+  let cleared = false;
   await updateCoupon((c) => {
     c.lastCheck = now;
-    c.lastStatus = r.found ? 'cupom encontrado' : 'ok (cupom não encontrado)';
-    if (r.found) { if (!c.alerted) { shouldAlert = true; c.alerted = true; } }
-    else { cleared = !!c.alerted; c.alerted = false; }
+    const nFound = specs.filter((sp) => sp.r.found).length;
+    c.lastStatus = nFound ? `cupom encontrado (${nFound}/${specs.length})` : 'ok (cupom não encontrado)';
+    for (const sp of specs) {
+      if (sp.r.found) { if (!c[sp.key]) { sp.alert = true; c[sp.key] = true; } }
+      else { if (c[sp.key]) cleared = true; c[sp.key] = false; }
+    }
   });
   if (cleared) haSync().catch(() => {});
-  if (shouldAlert) {
-    await chrome.notifications.create('alert:coupon', {
+  for (const sp of specs) {
+    if (!sp.alert) continue;
+    const cond = `${sp.mode === 'gte' ? '≥ ' : ''}${sp.value}`;
+    await chrome.notifications.create(sp.nid, {
       type: 'basic',
       iconUrl: 'icon128.png',
       title: 'Cupom encontrado!',
-      message: `${coupon.name ? coupon.name + ' · ' : ''}Valor ${coupon.mode === 'gte' ? '≥ ' : ''}${coupon.value}\n${(r.hits || []).join(' · ').slice(0, 160)}`,
+      message: `${sp.name ? sp.name + ' · ' : ''}Valor ${cond}\n${(sp.r.hits || []).join(' · ').slice(0, 160)}`,
       priority: 2,
       requireInteraction: true,
       buttons: [{ title: 'Silenciar' }, { title: 'Abrir página' }],
     });
     const cs = await chrome.storage.local.get('sound:coupon');
-    await announce(`Cupom encontrado! ${coupon.name ? coupon.name + '. ' : ''}Valor ${coupon.value}.`, (cs['sound:coupon'] || {}).dataUrl || chrome.runtime.getURL('sounds/coupon.mp3')); // seu som > embutido
-    await haAlert('coupon', 'Cupom encontrado!', `${coupon.name ? coupon.name + ' · ' : ''}Valor ${coupon.mode === 'gte' ? '≥ ' : ''}${coupon.value}`, { url: coupon.url, hits: r.hits || [] });
+    await announce(`Cupom encontrado! ${sp.name ? sp.name + '. ' : ''}Valor ${sp.value}.`, (cs['sound:coupon'] || {}).dataUrl || chrome.runtime.getURL('sounds/coupon.mp3')); // seu som > embutido
+    await haAlert('coupon', 'Cupom encontrado!', `${sp.name ? sp.name + ' · ' : ''}Valor ${cond}`, { url: coupon.url, hits: sp.r.hits || [] });
   }
 }
 
@@ -564,7 +580,7 @@ async function haSync(cfgIn) {
     const st = await chrome.storage.local.get(['coupon', 'captcha', 'products']);
     const hot = (st.products || []).filter((p) => p.alerted);
     const states = {
-      coupon:  { on: !!(st.coupon && st.coupon.alerted), attrs: { valor: st.coupon && st.coupon.value, nome: st.coupon && st.coupon.name, url: st.coupon && st.coupon.url } },
+      coupon:  { on: !!(st.coupon && (st.coupon.alerted || st.coupon.alerted2)), attrs: { valor: st.coupon && st.coupon.value, nome: st.coupon && st.coupon.name, valor2: st.coupon && st.coupon.value2, nome2: st.coupon && st.coupon.name2, url: st.coupon && st.coupon.url } },
       captcha: { on: !!st.captcha, attrs: { desde: st.captcha ? new Date(st.captcha.since).toISOString() : null, url: st.captcha && st.captcha.url } },
       product: { on: hot.length > 0, attrs: { quantidade: hot.length, produtos: hot.map((p) => ({ nome: p.name, preco: p.alertedPrice, alvo: p.target, url: p.url })) } },
     };
@@ -657,7 +673,7 @@ async function stopSound() {
 }
 
 async function openProduct(nid) {
-  if (nid === 'alert:coupon') {
+  if (nid === 'alert:coupon' || nid === 'alert:coupon2') {
     const { coupon } = await chrome.storage.local.get('coupon');
     if (coupon && coupon.url) chrome.tabs.create({ url: coupon.url });
     return;

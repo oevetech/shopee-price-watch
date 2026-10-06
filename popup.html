@@ -123,13 +123,22 @@
   <div class="defsound">
     <label>Monitor de cupons — página de cupons (link)</label>
     <input type="text" id="cpUrl" value="https://shopee.com.br/m/cupom-de-desconto" placeholder="https://shopee.com.br/...">
-    <div style="margin-top:6px"><label>Nome do cupom (opcional) — ex.: tecnologia</label><input type="text" id="cpName" placeholder="vazio = qualquer cupom com esse valor"></div>
+    <div style="margin-top:6px"><label><b>Cupom 1</b> — nome (opcional) — ex.: tecnologia</label><input type="text" id="cpName" placeholder="vazio = qualquer cupom com esse valor"></div>
     <div class="row" style="margin-top:6px">
       <div style="flex:1"><label>Valor do cupom</label><input type="text" id="cpValue" placeholder="ex.: 50 (R$50) ou 10%"></div>
       <div style="flex:1"><label>Condição</label>
         <select id="cpMode"><option value="eq" selected>Igual ao valor</option><option value="gte">Igual ou maior</option></select>
       </div>
-      <div style="flex:1"><label>Checar a cada</label>
+    </div>
+    <div style="margin-top:6px"><label><b>Cupom 2 (opcional)</b> — nome (opcional) — ex.: tecnologia</label><input type="text" id="cpName2" placeholder="vazio = qualquer cupom com esse valor"></div>
+    <div class="row" style="margin-top:6px">
+      <div style="flex:1"><label>Valor do cupom</label><input type="text" id="cpValue2" placeholder="ex.: 50 (R$50) ou 10%"></div>
+      <div style="flex:1"><label>Condição</label>
+        <select id="cpMode2"><option value="eq" selected>Igual ao valor</option><option value="gte">Igual ou maior</option></select>
+      </div>
+    </div>
+    <div style="margin-top:6px">
+      <div><label>Checar a cada</label>
         <select id="cpInterval">
           <option value="5">5 min</option><option value="10">10 min</option><option value="15" selected>15 min</option>
           <option value="20">20 min</option><option value="25">25 min</option><option value="30">30 min</option><option value="60">60 min</option>
